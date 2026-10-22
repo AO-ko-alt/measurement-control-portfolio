@@ -19,7 +19,7 @@
 每一周的实验都会放进对应的文件夹里，GitHub 会帮我把它们安全地存到网上，
 既能当作学习档案，也能作为以后求职 / 升学时展示动手能力的作品集。
 
-> 📍 在线访问地址：（创建 GitHub 仓库后由程序自动填入，见文末更新记录）
+> 📍 在线访问地址：**[https://github.com/AO-ko-alt/measurement-control-portfolio](https://github.com/AO-ko-alt/measurement-control-portfolio)**
 
 ---
 
@@ -95,6 +95,7 @@
 | 日期 | 内容 |
 | --- | --- |
 | 2026-10-22 | 初始化仓库：建立 .gitignore、README 与 16 周实验目录骨架 |
+| 2026-10-22 | 创建 GitHub 公开仓库并推送：https://github.com/AO-ko-alt/measurement-control-portfolio |
 
 ---
 
