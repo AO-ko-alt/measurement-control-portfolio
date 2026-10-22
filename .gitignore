@@ -1,0 +1,96 @@
+# ============================================================
+# 南昌大学 · 测控技术与仪器 个人作品集 —— .gitignore
+# 作用：告诉 Git「这些文件/文件夹不要放进仓库」。
+# 初学者记住一句话：仓库里只放「源码、文档、必要的素材」，
+# 临时文件、密码、超大文件、各系统的垃圾文件都该忽略。
+# ============================================================
+
+# ---------- 1. 操作系统产生的垃圾文件 ----------
+# Windows 缩略图缓存、Mac 的 .DS_Store、Linux 桌面配置等
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+.AppleDouble
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# ---------- 2. 编辑器 / IDE 的配置（含个人偏好，不该共享） ----------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---------- 3. Python 相关（本课程大概率会用到） ----------
+# 编译后的字节码
+__pycache__/
+*.py[cod]
+*$py.class
+# 虚拟环境（几十 MB，且每个人不同，必须忽略）
+venv/
+.venv/
+env/
+# 依赖锁文件（如需固定版本可保留 requirements.txt，但忽略锁文件缓存）
+Pipfile.lock
+poetry.lock
+# Jupyter 检查点
+.ipynb_checkpoints/
+
+# ---------- 4. Node / 前端（若做网页作品） ----------
+node_modules/
+dist/
+build/
+.cache/
+
+# ---------- 5. Arduino / 单片机（测控专业常用） ----------
+.pio/
+.pioenvs/
+.piolibdeps/
+*.elf
+*.hex
+*.bin
+# 但请保留 .ino 源码与 platformio.ini 配置
+
+# ---------- 6. LaTeX / 文档编译产物 ----------
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+
+# ---------- 7. 数据与模型文件（通常很大，不建议进 Git） ----------
+# 如需共享数据，建议改用网盘或 Git LFS
+*.zip
+*.tar.gz
+*.rar
+*.7z
+# 大型数据集
+datasets/
+*.csv.gz
+*.h5
+*.npy
+*.npz
+
+# ---------- 8. 密钥与隐私（最重要！绝不入库） ----------
+# 任何含密码、Token、API Key 的文件
+.env
+.env.*
+*.key
+*.pem
+secrets.json
+credentials.json
+# 不要把导出的成绩、证件扫描件放进来
+*.pdf.scan
+身份证*
+private/
+
+# ---------- 9. 日志与临时文件 ----------
+*.log
+tmp/
+temp/
+*.tmp
+*.bak
