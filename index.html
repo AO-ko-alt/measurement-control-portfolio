@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>单摆简谐振动模拟器</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #1a1a24;
+    overflow: hidden;
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #d8d8e6;
+  }
+  #stage {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+  #hud {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    font-size: 13px;
+    line-height: 1.7;
+    background: rgba(30, 30, 44, 0.55);
+    border: 1px solid rgba(120, 130, 200, 0.25);
+    border-radius: 10px;
+    padding: 12px 16px;
+    backdrop-filter: blur(4px);
+    user-select: none;
+    pointer-events: none;
+  }
+  #hud b { color: #7fd7ff; font-weight: 600; }
+  #tip {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: rgba(200, 200, 220, 0.5);
+    user-select: none;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+<div id="hud">
+  <div>摆长 L = <b id="hL">200</b> px</div>
+  <div>重力 g = <b id="hG">9.8</b> m/s²</div>
+  <div>当前摆角 θ = <b id="hTheta">45.0</b>°</div>
+  <div>角速度 ω = <b id="hOmega">0.000</b> rad/s</div>
+  <div>周期 T ≈ <b id="hT">2.84</b> s</div>
+</div>
+<div id="tip">点击画面任意位置可重置摆角 · 双击画面可暂停/继续</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ===== 物理与几何参数 =====
+  var L = 200;            // 摆长 (像素，作为画布上的长度单位)
+  var g = 9.8;            // 重力加速度
+  var theta = 45 * Math.PI / 180; // 初始摆角 45°
+  var omega = 0;          // 角速度 (rad/s)
+  var alpha = 0;          // 角加速度 (rad/s^2)
+
+  // 真实单摆非线性方程: α = -(g / L_real) * sin(θ)
+  // 这里把像素摆长换算成“米”用于物理，使周期量级合理。
+  // 取 1 米 = 100 像素 的换算比例，则 L_real = 2.0 m。
+  var PIXELS_PER_METER = 100;
+  var L_real = L / PIXELS_PER_METER; // 2.0 m
+
+  // 小角度近似周期 T = 2π√(L/g)（用于 HUD 参考显示）
+  function smallAnglePeriod() {
+    return 2 * Math.PI * Math.sqrt(L_real / g);
+  }
+
+  // ===== 画布初始化 =====
+  var canvas = document.getElementById("stage");
+  var ctx = canvas.getContext("2d");
+  var DPR = window.devicePixelRatio || 1;
+  var W = 0, H = 0;
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ===== 运动轨迹拖尾 =====
+  var trail = [];
+  var MAX_TRAIL = 26;
+
+  // ===== 主循环：requestAnimationFrame 驱动 =====
+  var paused = false;
+  var lastTime = performance.now();
+
+  function physicsStep(dt) {
+    // 半隐式欧拉积分，提升稳定性；dt 已做上限裁剪
+    // α = -(g / L_real) * sin(θ)
+    alpha = -(g / L_real) * Math.sin(theta);
+    omega += alpha * dt;
+    theta += omega * dt;
+  }
+
+  function update(now) {
+    var dt = (now - lastTime) / 1000; // 秒
+    lastTime = now;
+    if (!paused) {
+      // 大 dt（切后台/卡顿）时做子步进，保证数值稳定
+      if (dt > 0.05) dt = 0.05;
+      var subSteps = 4;
+      var h = dt / subSteps;
+      for (var i = 0; i < subSteps; i++) {
+        physicsStep(h);
+      }
+
+      // 记录拖尾
+      var pivot = pivotPoint();
+      var bx = pivot.x + L * Math.sin(theta);
+      var by = pivot.y + L * Math.cos(theta);
+      trail.push({ x: bx, y: by });
+      if (trail.length > MAX_TRAIL) trail.shift();
+    }
+    draw();
+    updateHUD();
+    requestAnimationFrame(update);
+  }
+
+  function pivotPoint() {
+    return { x: W / 2, y: H * 0.28 };
+  }
+
+  // ===== 绘制 =====
+  function draw() {
+    // 背景：深灰科技色 + 轻微径向渐变
+    var grad = ctx.createRadialGradient(W / 2, H * 0.3, 60, W / 2, H * 0.5, Math.max(W, H) * 0.8);
+    grad.addColorStop(0, "#22222f");
+    grad.addColorStop(1, "#1a1a24");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    var pivot = pivotPoint();
+    var bx = pivot.x + L * Math.sin(theta);
+    var by = pivot.y + L * Math.cos(theta);
+
+    // 拖尾
+    if (trail.length > 1) {
+      for (var i = 0; i < trail.length - 1; i++) {
+        var a = (i / trail.length);
+        ctx.beginPath();
+        ctx.moveTo(trail[i].x, trail[i].y);
+        ctx.lineTo(trail[i + 1].x, trail[i + 1].y);
+        ctx.strokeStyle = "rgba(127, 215, 255," + (a * 0.35).toFixed(3) + ")";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    // 摆线
+    ctx.beginPath();
+    ctx.moveTo(pivot.x, pivot.y);
+    ctx.lineTo(bx, by);
+    ctx.strokeStyle = "rgba(180, 190, 230, 0.75)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 悬挂支点
+    ctx.beginPath();
+    ctx.arc(pivot.x, pivot.y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = "#9aa3c7";
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(pivot.x - 22, pivot.y);
+    ctx.lineTo(pivot.x + 22, pivot.y);
+    ctx.strokeStyle = "rgba(150,160,200,0.4)";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // 摆球（带发光光效）
+    var r = 18;
+    ctx.save();
+    ctx.shadowBlur = 28;
+    ctx.shadowColor = "rgba(127, 215, 255, 0.9)";
+    var ballGrad = ctx.createRadialGradient(bx - r * 0.3, by - r * 0.3, 2, bx, by, r);
+    ballGrad.addColorStop(0, "#eaf6ff");
+    ballGrad.addColorStop(0.4, "#7fd7ff");
+    ballGrad.addColorStop(1, "#2b7fd4");
+    ctx.beginPath();
+    ctx.arc(bx, by, r, 0, Math.PI * 2);
+    ctx.fillStyle = ballGrad;
+    ctx.fill();
+    ctx.restore();
+
+    // 摆球高光
+    ctx.beginPath();
+    ctx.arc(bx - r * 0.32, by - r * 0.32, r * 0.28, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.fill();
+  }
+
+  // ===== HUD 更新 =====
+  var elL = document.getElementById("hL");
+  var elG = document.getElementById("hG");
+  var elTheta = document.getElementById("hTheta");
+  var elOmega = document.getElementById("hOmega");
+  var elT = document.getElementById("hT");
+  elL.textContent = L;
+  elG.textContent = g;
+  elT.textContent = smallAnglePeriod().toFixed(2);
+
+  function updateHUD() {
+    var deg = theta * 180 / Math.PI;
+    // 归一化到 -180~180 显示
+    while (deg > 180) deg -= 360;
+    while (deg < -180) deg += 360;
+    elTheta.textContent = deg.toFixed(1);
+    elOmega.textContent = omega.toFixed(3);
+  }
+
+  // ===== 交互 =====
+  canvas.addEventListener("click", function (e) {
+    // 依据点击位置相对支点的方向，重置一个摆角（幅度限制到 ±80°）
+    var pivot = pivotPoint();
+    var dx = e.clientX - pivot.x;
+    var dy = e.clientY - pivot.y;
+    if (dy <= 0) dy = 1; // 避免点在支点正上方时角度无意义
+    var newTheta = Math.atan2(dx, dy);
+    var maxT = 80 * Math.PI / 180;
+    if (newTheta > maxT) newTheta = maxT;
+    if (newTheta < -maxT) newTheta = -maxT;
+    theta = newTheta;
+    omega = 0;
+    trail.length = 0;
+  });
+  canvas.addEventListener("dblclick", function () {
+    paused = !paused;
+    lastTime = performance.now();
+  });
+
+  // ===== 启动 =====
+  requestAnimationFrame(function (t) {
+    lastTime = t;
+    requestAnimationFrame(update);
+  });
+})();
+</script>
+</body>
+</html>
