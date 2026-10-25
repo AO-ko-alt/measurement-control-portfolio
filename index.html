@@ -44,6 +44,68 @@
     user-select: none;
     pointer-events: none;
   }
+
+  /* ===== 参数控制面板（增量追加） ===== */
+  #controls {
+    position: fixed;
+    bottom: 52px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 16px 24px;
+    background: rgba(30, 30, 44, 0.55);
+    border: 1px solid rgba(120, 130, 200, 0.25);
+    border-radius: 12px;
+    padding: 14px 22px;
+    backdrop-filter: blur(4px);
+    user-select: none;
+    z-index: 10;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+    max-width: 92vw;
+  }
+  .ctrl {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 150px;
+  }
+  .ctrl .row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+    color: rgba(200, 200, 220, 0.75);
+    white-space: nowrap;
+  }
+  .ctrl .val {
+    color: #7fd7ff;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .ctrl input[type="range"] {
+    width: 150px;
+    height: 4px;
+    accent-color: #7fd7ff;
+    cursor: pointer;
+    background: transparent;
+  }
+  #resetBtn {
+    background: rgba(127, 215, 255, 0.15);
+    border: 1px solid rgba(127, 215, 255, 0.5);
+    color: #7fd7ff;
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease;
+  }
+  #resetBtn:hover { background: rgba(127, 215, 255, 0.28); }
+  #resetBtn:active { transform: translateY(1px); }
 </style>
 </head>
 <body>
@@ -57,6 +119,22 @@
 </div>
 <div id="tip">点击画面任意位置可重置摆角 · 双击画面可暂停/继续</div>
 
+<div id="controls">
+  <div class="ctrl">
+    <div class="row">摆长 L = <span class="val" id="lenVal">200</span> px</div>
+    <input type="range" id="lenRange" min="100" max="350" step="1" value="200" />
+  </div>
+  <div class="ctrl">
+    <div class="row">重力 g = <span class="val" id="gravVal">9.8</span> m/s²</div>
+    <input type="range" id="gravRange" min="1" max="25" step="0.1" value="9.8" />
+  </div>
+  <div class="ctrl">
+    <div class="row">阻尼 c = <span class="val" id="dampVal">0.000</span></div>
+    <input type="range" id="dampRange" min="0" max="0.010" step="0.001" value="0" />
+  </div>
+  <button id="resetBtn" type="button">重置摆动</button>
+</div>
+
 <script>
 (function () {
   "use strict";
@@ -67,6 +145,7 @@
   var theta = 45 * Math.PI / 180; // 初始摆角 45°
   var omega = 0;          // 角速度 (rad/s)
   var alpha = 0;          // 角加速度 (rad/s^2)
+  var damping = 0.000;    // 阻尼系数 (线性黏性阻尼：α -= c·ω)
 
   // 真实单摆非线性方程: α = -(g / L_real) * sin(θ)
   // 这里把像素摆长换算成“米”用于物理，使周期量级合理。
@@ -107,8 +186,11 @@
 
   function physicsStep(dt) {
     // 半隐式欧拉积分，提升稳定性；dt 已做上限裁剪
-    // α = -(g / L_real) * sin(θ)
-    alpha = -(g / L_real) * Math.sin(theta);
+    // 真实单摆非线性方程 + 线性黏性阻尼：
+    //   α = -(g / L_real) · sin(θ) - c · ω
+    // L_real 由当前摆长 L 实时换算，确保滑块调节即时生效
+    var Lr = L / PIXELS_PER_METER;
+    alpha = -(g / Lr) * Math.sin(theta) - damping * omega;
     omega += alpha * dt;
     theta += omega * dt;
   }
@@ -246,6 +328,44 @@
   canvas.addEventListener("dblclick", function () {
     paused = !paused;
     lastTime = performance.now();
+  });
+
+  // ===== 参数控制面板：实时交互 =====
+  var lenRange = document.getElementById("lenRange");
+  var gravRange = document.getElementById("gravRange");
+  var dampRange = document.getElementById("dampRange");
+  var lenVal = document.getElementById("lenVal");
+  var gravVal = document.getElementById("gravVal");
+  var dampVal = document.getElementById("dampVal");
+
+  function syncLength() {
+    L = parseFloat(lenRange.value);
+    lenVal.textContent = L;
+    elL.textContent = L;
+    elT.textContent = smallAnglePeriod().toFixed(2);
+  }
+  function syncGravity() {
+    g = parseFloat(gravRange.value);
+    gravVal.textContent = g.toFixed(1);
+    elG.textContent = g.toFixed(1);
+    elT.textContent = smallAnglePeriod().toFixed(2);
+  }
+  function syncDamping() {
+    damping = parseFloat(dampRange.value);
+    dampVal.textContent = damping.toFixed(3);
+  }
+
+  lenRange.addEventListener("input", syncLength);
+  gravRange.addEventListener("input", syncGravity);
+  dampRange.addEventListener("input", syncDamping);
+
+  // ===== 重置摆动：摆球精准回到 45° 初始状态 =====
+  var resetBtn = document.getElementById("resetBtn");
+  resetBtn.addEventListener("click", function () {
+    theta = 45 * Math.PI / 180;
+    omega = 0;
+    alpha = 0;
+    trail.length = 0;
   });
 
   // ===== 启动 =====
