@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>双摆混沌模拟器 (RK4 数值积分) - 进阶挑战 A</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #12121c;
+      color: #e0e6ed;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+    header {
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #f0f4f8;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(156, 39, 176, 0.2);
+      color: #ce93d8;
+      border: 1px solid rgba(156, 39, 176, 0.4);
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+    canvas {
+      display: block;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+      border-radius: 12px;
+      background: radial-gradient(circle at center, #1c1c28 0%, #0d0d14 100%);
+      cursor: crosshair;
+    }
+    .control-panel {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 10px 24px;
+      background: rgba(25, 25, 38, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      max-width: 800px;
+      width: 100%;
+      font-size: 0.8rem;
+    }
+    .status-text {
+      color: #90caf9;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      background: linear-gradient(135deg, #7b1fa2 0%, #4a148c 100%);
+      color: #fff;
+      border: none;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(123, 31, 162, 0.4);
+      transition: all 0.2s ease;
+    }
+    button:hover {
+      background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>双摆混沌模拟器 (Double Pendulum Chaos)</h1>
+      <span class="badge">Bonus Challenge A: Runge-Kutta 4阶数值积分 + 彩虹渐变拖尾</span>
+    </header>
+
+    <canvas id="canvas" width="800" height="500"></canvas>
+
+    <div class="control-panel">
+      <div class="status-text">
+        💡 <b>互动提示</b>：可用鼠标直接拖拽任一摆球调整初始角度并释放！
+      </div>
+      <div class="btn-group">
+        <button onclick="clearTrail()">清空拖尾</button>
+        <button onclick="resetSystem()">重置初值</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const origin = { x: canvas.width / 2, y: 160 };
+
+    // 双摆物理参数
+    const l1 = 130; // 摆长 1
+    const l2 = 120; // 摆长 2
+    const m1 = 10;  // 质量 1
+    const m2 = 10;  // 质量 2
+    const g = 9.81 * 100; // 物理重力缩放
+
+    // 状态量: [theta1, theta2, omega1, omega2]
+    let state = [Math.PI / 2, Math.PI / 2, 0, 0];
+
+    // 历史拖尾队列
+    const maxTrail = 300;
+    const trail = [];
+
+    // 鼠标拖拽状态
+    let isDragging = null; // 1: 拖球1, 2: 拖球2
+
+    // 双摆拉格朗日二阶微分方程导数计算
+    function getDerivatives(s) {
+      const [t1, t2, w1, w2] = s;
+      const delta = t1 - t2;
+
+      // 分子分母展开 (经典双摆动力学方程)
+      const den1 = l1 * (2 * m1 + m2 - m2 * Math.cos(2 * t1 - 2 * t2));
+      const num1 = -g * (2 * m1 + m2) * Math.sin(t1) - m2 * g * Math.sin(t1 - 2 * t2) - 2 * Math.sin(delta) * m2 * (w2 * w2 * l2 + w1 * w1 * l1 * Math.cos(delta));
+      const alpha1 = num1 / den1;
+
+      const den2 = l2 * (2 * m1 + m2 - m2 * Math.cos(2 * t1 - 2 * t2));
+      const num2 = 2 * Math.sin(delta) * (w1 * w1 * l1 * (m1 + m2) + g * (m1 + m2) * Math.cos(t1) + w2 * w2 * l2 * m2 * Math.cos(delta));
+      const alpha2 = num2 / den2;
+
+      return [w1, w2, alpha1, alpha2];
+    }
+
+    // Runge-Kutta 4阶数值积分 (RK4)
+    function rk4Step(s, dt) {
+      const k1 = getDerivatives(s);
+      
+      const s2 = s.map((val, i) => val + k1[i] * dt * 0.5);
+      const k2 = getDerivatives(s2);
+
+      const s3 = s.map((val, i) => val + k2[i] * dt * 0.5);
+      const k3 = getDerivatives(s3);
+
+      const s4 = s.map((val, i) => val + k3[i] * dt);
+      const k4 = getDerivatives(s4);
+
+      return s.map((val, i) => val + (dt / 6) * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]));
+    }
+
+    function clearTrail() {
+      trail.length = 0;
+    }
+
+    function resetSystem() {
+      state = [Math.PI / 2, Math.PI / 2, 0, 0];
+      clearTrail();
+    }
+
+    // 鼠标交互
+    canvas.addEventListener('mousedown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      const x1 = origin.x + l1 * Math.sin(state[0]);
+      const y1 = origin.y + l1 * Math.cos(state[0]);
+      const x2 = x1 + l2 * Math.sin(state[1]);
+      const y2 = y1 + l2 * Math.cos(state[1]);
+
+      if (Math.hypot(mx - x2, my - y2) < 25) {
+        isDragging = 2;
+        state[2] = 0;
+        state[3] = 0;
+      } else if (Math.hypot(mx - x1, my - y1) < 25) {
+        isDragging = 1;
+        state[2] = 0;
+        state[3] = 0;
+      }
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      if (isDragging === 1) {
+        state[0] = Math.atan2(mx - origin.x, my - origin.y);
+      } else if (isDragging === 2) {
+        const x1 = origin.x + l1 * Math.sin(state[0]);
+        const y1 = origin.y + l1 * Math.cos(state[0]);
+        state[1] = Math.atan2(mx - x1, my - y1);
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = null;
+    });
+
+    let lastTime = performance.now();
+
+    function animate(currentTime) {
+      const dt = Math.min((currentTime - lastTime) / 1000, 0.03);
+      lastTime = currentTime;
+
+      // 若未在拖拽，执行 RK4 物理迭代 (拆分微步保持极致精度)
+      if (!isDragging) {
+        const subSteps = 8;
+        const subDt = dt / subSteps;
+        for (let i = 0; i < subSteps; i++) {
+          state = rk4Step(state, subDt);
+        }
+      }
+
+      // 计算两摆球实时坐标
+      const x1 = origin.x + l1 * Math.sin(state[0]);
+      const y1 = origin.y + l1 * Math.cos(state[0]);
+      const x2 = x1 + l2 * Math.sin(state[1]);
+      const y2 = y1 + l2 * Math.cos(state[1]);
+
+      // 记录第二个摆球的轨迹
+      trail.push({ x: x2, y: y2, time: currentTime });
+      if (trail.length > maxTrail) trail.shift();
+
+      // --- 绘制阶段 ---
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 1. 绘制彩虹渐变发光拖尾
+      if (trail.length > 1) {
+        for (let i = 1; i < trail.length; i++) {
+          const p0 = trail[i - 1];
+          const p1 = trail[i];
+          const progress = i / trail.length;
+          const hue = (i * 2 + currentTime * 0.05) % 360;
+
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y);
+          ctx.lineTo(p1.x, p1.y);
+          ctx.strokeStyle = `hsla(${hue}, 100%, 65%, ${progress * 0.8})`;
+          ctx.lineWidth = progress * 3;
+          ctx.shadowColor = `hsl(${hue}, 100%, 60%)`;
+          ctx.shadowBlur = 8;
+          ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+      }
+
+      // 2. 绘制摆线
+      ctx.beginPath();
+      ctx.moveTo(origin.x, origin.y);
+      ctx.lineTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // 3. 绘制支点
+      ctx.beginPath();
+      ctx.arc(origin.x, origin.y, 6, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+
+      // 4. 绘制摆球 1
+      ctx.beginPath();
+      ctx.arc(x1, y1, 12, 0, Math.PI * 2);
+      ctx.fillStyle = '#ff4081';
+      ctx.shadowColor = '#ff4081';
+      ctx.shadowBlur = 14;
+      ctx.fill();
+
+      // 5. 绘制摆球 2
+      ctx.beginPath();
+      ctx.arc(x2, y2, 14, 0, Math.PI * 2);
+      ctx.fillStyle = '#00e5ff';
+      ctx.shadowColor = '#00e5ff';
+      ctx.shadowBlur = 18;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      requestAnimationFrame(animate);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

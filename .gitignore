@@ -94,3 +94,8 @@ tmp/
 temp/
 *.tmp
 *.bak
+
+# ---------- 10. 工作区工具数据与 macOS 元数据 ----------
+.workbuddy/
+__MACOSX__/
+._*

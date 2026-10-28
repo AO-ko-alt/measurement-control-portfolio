@@ -1,0 +1,21 @@
+{
+  "dataset": "2026_Campus_Sleep_Intervention",
+  "groups": [
+    {
+      "id": "G_Control",
+      "mode": "睡前自由刷短视频",
+      "n": 40,
+      "pass_count": 17,
+      "avg_sleep_sec": 2760,
+      "morning_fatigue_cases": 29
+    },
+    {
+      "id": "G_Exp",
+      "mode": "灰阶屏幕+离床隔离",
+      "n": 40,
+      "pass_count": 34,
+      "avg_sleep_sec": 840,
+      "morning_fatigue_cases": 3
+    }
+  ]
+}
