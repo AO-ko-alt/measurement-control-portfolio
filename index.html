@@ -360,13 +360,21 @@
   dampRange.addEventListener("input", syncDamping);
 
   // ===== 重置摆动：摆球精准回到 45° 初始状态 =====
-  var resetBtn = document.getElementById("resetBtn");
-  resetBtn.addEventListener("click", function () {
+  // 关键修复：resetAnimation 定义在 IIFE 闭包内，
+  // 必须通过闭包内的 addEventListener 绑定，才能访问 theta/omega/trail 等私有变量。
+  // 同时移除任何残留的内联 onclick="resetAnimation()"，
+  // 否则内联处理器会在全局作用域查找该函数 → ReferenceError。
+  function resetAnimation() {
     theta = 45 * Math.PI / 180;
     omega = 0;
     alpha = 0;
     trail.length = 0;
-  });
+  }
+  var resetBtn = document.getElementById("resetBtn");
+  if (resetBtn) {
+    resetBtn.removeAttribute("onclick"); // 清除内联处理器，避免作用域外调用
+    resetBtn.addEventListener("click", resetAnimation);
+  }
 
   // ===== 启动 =====
   requestAnimationFrame(function (t) {
