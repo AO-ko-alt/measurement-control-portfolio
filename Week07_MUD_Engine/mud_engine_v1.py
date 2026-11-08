@@ -16,7 +16,7 @@ def dispatch_command(raw_input):
     command = raw_input.strip().lower()
 
     if not command:
-        return "少侠尚未输入指令。可用指令：/look、/status、/go <方向>。"
+        return "少侠尚未输入指令。可用指令：/look、/status、/heal、/help_scholar、/go <方向>。"
 
     # ② 每次都从 player 重新取当前位置，再到 world 里查对应房间
     room = world[player["location"]]
@@ -32,6 +32,32 @@ def dispatch_command(raw_input):
         items = "、".join(player["inventory"]) if player["inventory"] else "（空）"
         return (f"【角色状态】{player['name']} | 生命：{player['health']}/{player['max_health']} "
                 f"| 铜钱：{player['gold']} | 声望：{player['reputation']} | 背包：{items}")
+
+    elif command == "/heal":
+        # 先检查最具体的限制条件：背包里有没有金创药
+        if "金创药" not in player["inventory"]:
+            return "你行囊中没有【金创药】，无法服药疗伤。"
+        # 再检查当前血量是否已经满值
+        if player["health"] >= player["max_health"]:
+            return "你当前气血充沛，无需服用金创药。"
+        # 两个条件都满足，才执行服药回血（最高不超过 max_health）
+        player["inventory"].remove("金创药")
+        player["health"] = min(player["max_health"], player["health"] + 20)
+        return (f"你服下一瓶金创药，气血恢复至 {player['health']}/{player['max_health']}。"
+                f"（剩余金创药：{player['inventory'].count('金创药')}）")
+
+    elif command == "/help_scholar":
+        # 先检查最具体的限制条件：玩家是否就在春来茶馆
+        if player["location"] != "chaguan":
+            return "当前地点没有需要救助的落魄书生。"
+        # 再检查铜钱是否足够
+        if player["gold"] < 10:
+            return "你囊中羞涩（铜钱不足 10 文），只能向书生拱手致歉。"
+        # 两个条件都满足，才扣钱加声望
+        player["gold"] -= 10
+        player["reputation"] += 15
+        return (f"你解囊相助落魄书生 10 文铜钱（剩余铜钱：{player['gold']}，"
+                f"江湖声望提升至 {player['reputation']}）。")
 
     elif command.startswith("/go"):
         # split() 不带参数：自动把中间连续多个空格合并切开
@@ -55,7 +81,7 @@ def dispatch_command(raw_input):
 
     else:
         return (f"无法识别的指令：{raw_input.strip()}。"
-                f"可用指令：/look、/status、/go <方向>。")
+                f"可用指令：/look、/status、/heal、/help_scholar、/go <方向>。")
 
 
 if __name__ == "__main__":
