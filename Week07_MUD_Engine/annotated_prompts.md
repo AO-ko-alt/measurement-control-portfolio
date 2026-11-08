@@ -34,12 +34,25 @@ room["exits"]:  检查该方向有没有路；如果有路，就从  room["exits
 ### 2. 阶段二 & 三：指令判断与房间移动 & 状态条件分支 (`mud_engine_v1.py`)
 - **发送的 ROCA 提示词**：
   ```text
-  [请粘贴你在阶段二/三用于构建 /look、/status、/heal、/help_scholar、/go 指令分支的 ROCA 提示词]
+  [【Role · ⻆色设定】 你是一位 Python 编程助教，擅⻓编写清晰易读的条件分支代码。
+【Objective · 核心目标】 导入  world_data.py  中的  world  与  player，编写指令判断脚本
+mud_engine_v1.py，支持  /look（查看四周）、/status（查看状态）与  /go <方向>（移动）。
+【Constraint · 边界约束】
+清理输入格式：接收玩家输入时，去掉首尾多余空格并统一转为小写（.strip().lower()）；
+多路分支判断：用  if-elif-else  区分  /look（打印当前房间描述与可用出口）、/status（打印
+玩家血量、铜钱、声望与背包）以及以  /go  开头的移动指令；
+按字典出口切换房间：提取玩家输入的方向词  direction  后，先用  if direction in 
+room["exits"]:  检查该方向有没有路；如果有路，就从  room["exits"][direction]  取出目标
+房间代号更新玩家位置，不要在分支里死板地写死具体房间名。
+【Acceptance · 验收清单】 ① 输入带空格和大写的  "  /Go East "  能否正常从广场走到春来茶馆；②
+输入没有路的方向  "/go up"  能否礼貌提示无法通行。]
   ```
-- **人工代码审查批注（分支顺序与字典查询核验）**：
-  - 核查 `/heal` 与 `/help_scholar` 多路分支是否遵循“严格条件放前面、宽泛兜底放后面”原则：`[填写你的审查记录]`
-  - 核查 `/go` 分支是否通过查询当前房间的 `exits` 字典切换位置（而非死写房间名）：`[填写你的审查记录]`
-
+- **问答**：
+  问；为什么从  room["exits"][direction]  里读取目标房间，比一条条写elif command == "/go east":  更省事？
+  答：查表法新增路线只是往表里加一行数据，硬编码则是往逻辑里加一段代码
+  问：如果删掉  if direction in 
+  room["exits"]:  这行检查，当玩家乱输方向时会报什么错（KeyError）？
+  答：会抛出 KeyError ，当direction键不存在于exits字典，直接读取 room["exits"][direction] ，字典找不到该键就直接程序崩溃。
 ---
 
 ### 3. 阶段四 & 五：5 类非常规输入测试与防崩溃修复 (`mud_engine_robust.py`)
