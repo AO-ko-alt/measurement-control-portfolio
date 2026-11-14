@@ -35,8 +35,13 @@ mud_loop_v1.py。
 | 故障编号与类型 | 触发操作指令 | 终端捕获的原始证据（完整 `Traceback` 或 `[DEBUG]` 探针输出） | WWH 逆序定位 / 根因诊断 (RCA) |
 | :--- | :--- | :--- | :--- |
 | **故障 A：显性崩溃 (`KeyError`)** | 在广场输入 `/go east`（出口被篡改为 `"market"`） | ```text
-(请在此全量无损粘贴你捕获的 Traceback)
-``` | - **What（死因）**：`KeyError: 'market'`<br>- **Where（行号）**：第 `__` 行<br>- **How / RCA（根因）**：`[请填写]` |
+(Traceback (most recent call last):
+  File "D:\人机协同实验\8\starter_code\02_stage3_chaos_targets\mud_chaos_buggy.py", line 63, in <module>
+    new_room = world[target_id]
+               ~~~~~^^^^^^^^^^^
+KeyError: 'market')
+
+``` | - **What（死因）**：`KeyError: 'market'`<br>- **Where（行号）**：第 `__` 行<br>- **How / RCA（根因）**：`[将原本的 "chaguan" 故意改写为不存在的房间键名 "market"]` |
 | **故障 B：静默失效（逻辑错误）** | 在茶馆输入 `/buy_tea`（买茶后铜钱不减反增） | `[DEBUG 交易前] gold=50, price=15`<br>`[DEBUG 交易后] gold=65 (预期应为 35)` | - **直接原因**：算术公式写成了双重负号 `gold - (-price)`<br>- **取证手段**：使用 `print()` 状态探针 |
 
 ---
